@@ -101,7 +101,51 @@ def verify_application(lab, app):
         lab.load_scenario("Sistema Genesis")
         print("GENESIS VERIFY: posicionamento na cena, criação, edição, ajustes, 7 cenários e telemetria integrada OK",flush=True)
 
+    def collision_visuals():
+        from simulation.body import Body
+        from simulation.physics import Simulation,Settings
+        from ursina import camera
+        lab.effects.clear()
+        lab.sim=Simulation([Body("A",1,[-.08,0,0],[0,0,0],.12,collision_radius=.1),
+                            Body("B",1,[.08,0,0],[0,0,0],.12,collision_radius=.1)],Settings(g=1e-8))
+        lab.sim.step()
+        assert len(lab.sim.collision_events)==1
+        event=lab.sim.collision_events[0]
+        lab.consume_collision_events()
+        assert len(lab.effects.bursts)==1
+        lab.effects.update(.35)
+        lab.explorer.position=(0,0,0)
+        lab.explorer.rotation=(22,-18,0)
+        lab.explorer.target_z=-3
+        camera.z=-3
+        lab.planets.sync(lab.sim.bodies,lab.select)
+        lab.hud.update()
+        capture("07-explosao.png")
+        lab.effects.update(3)
+        assert not lab.effects.bursts
+        for _ in range(14):
+            lab.effects.emit(event,"Baixa")
+        assert len(lab.effects.bursts)==lab.effects.MAX_BURSTS
+        lab.effects.clear()
+        sun=Body("Sol",1,[0,0,0],[0,0,0],.28,(1,.66,.22),"Estrela",.00465)
+        visitor=Body("Impactante",1e-6,[-1,0,0],[4000,0,0],.06)
+        lab.sim=Simulation([visitor,sun],Settings(g=1e-8,dt=.001,collisions=False))
+        lab.sim.step()
+        assert len(lab.sim.bodies)==1 and lab.sim.bodies[0].uid==sun.uid
+        lab.consume_collision_events()
+        assert lab.effects.bursts[0].absorbing
+        lab.effects.update(.12)
+        lab.planets.sync(lab.sim.bodies,lab.select)
+        lab.hud.update()
+        capture("08-absorcao-solar.png")
+        lab.effects.update(3)
+        assert not lab.effects.bursts
+        lab.load_scenario("Sistema Genesis")
+        assert not lab.effects.bursts and not lab.sim.collision_events
+        print("GENESIS VERIFY: explosão, destroços, absorção solar, limites e limpeza de efeitos OK",flush=True)
+
     invoke(overview,delay=2.5)
     invoke(editor,delay=3.3)
     invoke(teacher,delay=4.8)
-    invoke(application.quit,delay=8)
+    invoke(collision_visuals,delay=6.5)
+    invoke(application.quit,delay=10)

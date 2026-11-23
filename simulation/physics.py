@@ -6,6 +6,7 @@ import numpy as np
 from .body import Body
 from .gravity import G_ASTRONOMICAL, accelerations, energy, pair_forces
 from .integrator import velocity_verlet
+from .collisions import CollisionEvent
 
 
 @dataclass
@@ -13,7 +14,7 @@ class Settings:
     g: float = G_ASTRONOMICAL
     dt: float = 0.0005
     softening: float = 0.0001
-    collisions: bool = False
+    collisions: bool = True
     max_bodies: int = 128
     trail_length: int = 900
 
@@ -39,6 +40,7 @@ class Simulation:
         self.revision = 0
         self.steps = 0
         self.merge_count = 0
+        self.collision_events = deque(maxlen=256)
         self.refresh()
         self.reference_energy = self.total_energy
         self.record()
@@ -75,21 +77,57 @@ class Simulation:
     def step(self):
         if not self.bodies:
             return
-        if self.settings.collisions:
-            self.merge_collisions()
-        p, v, m = self.arrays()
-        p, v, a = velocity_verlet(p, v, m, self.settings.dt,
-                                   self.settings.g, self.settings.softening)
-        if not all(np.all(np.isfinite(x)) for x in (p, v, a)):
-            raise FloatingPointError("Estado não finito. Reduza o passo e reinicie o cenário.")
-        for body, pos, vel, acc in zip(self.bodies, p, v, a):
-            body.position, body.velocity, body.acceleration = pos, vel, acc
+        self.merge_collisions(force_planets=False)
+        remaining=self.settings.dt
+        while remaining>0:
+            p,v,m=self.arrays()
+            # Search before evaluating forces at the destination: a fast body
+            # may cross a star and leave it again within a single fixed step.
+            a0=accelerations(p,m,self.settings.g,self.settings.softening)
+            destination=p+v*remaining+.5*a0*remaining**2
+            hit=self.first_contact(p,destination)
+            duration=remaining if hit is None else remaining*hit[0]
+            if duration>0:
+                next_p,next_v,next_a=velocity_verlet(p,v,m,duration,self.settings.g,self.settings.softening)
+                self.set_state(next_p,next_v,next_a)
+            remaining=max(0,remaining-duration)
+            if hit is None:
+                break
+            self.merge_pair(hit[1],hit[2],self.time+self.settings.dt-remaining)
+            # Each contact reduces N, so even zero-time contact chains finish.
         self.time += self.settings.dt
         self.steps += 1
-        if self.settings.collisions:
-            self.merge_collisions()
+        self.merge_collisions(force_planets=False)
         if self.steps % 10 == 0:
             self.record()
+
+    def set_state(self,p,v,a):
+        if not all(np.all(np.isfinite(x)) for x in (p,v,a)):
+            raise FloatingPointError("Estado não finito. Reduza o passo e reinicie o cenário.")
+        for body,pos,vel,acc in zip(self.bodies,p,v,a):
+            body.position,body.velocity,body.acceleration=pos,vel,acc
+
+    def first_contact(self,start,end,force_planets=False):
+        i,j=np.triu_indices(len(self.bodies),1)
+        if not len(i):
+            return None
+        stars=np.array([b.kind=="Estrela" for b in self.bodies])
+        radii=np.array([max(b.visual_radius,b.collision_radius) if star else b.collision_radius
+                        for b,star in zip(self.bodies,stars)])
+        allowed=np.ones(len(i),dtype=bool) if force_planets or self.settings.collisions else stars[i]|stars[j]
+        relative=start[j]-start[i]
+        delta=(end[j]-end[i])-relative
+        a=np.sum(delta*delta,axis=1)
+        b=np.sum(relative*delta,axis=1)
+        c=np.sum(relative*relative,axis=1)-(radii[i]+radii[j])**2
+        disc=b*b-a*c
+        t=np.full(len(i),np.inf)
+        t[allowed & (c<=0)]=0
+        moving=allowed & (c>0) & (a>1e-30) & (b<0) & (disc>=0)
+        t[moving]=c[moving]/(-b[moving]+np.sqrt(disc[moving]))
+        t[(t<0)|(t>1)]=np.inf
+        index=int(np.argmin(t))
+        return (float(t[index]),int(i[index]),int(j[index])) if np.isfinite(t[index]) else None
 
     def record(self):
         for b in self.bodies:
@@ -136,25 +174,41 @@ class Simulation:
         idx = next(i for i, b in enumerate(self.bodies) if b.uid == uid)
         return pair_forces(p, m, self.settings.g, self.settings.softening)[idx]
 
-    def merge_collisions(self):
+    def merge_collisions(self,force_planets=True):
         # Repeat after a merge: the new volume can overlap another body.
         while True:
-            pair = next(((i, j) for i, a in enumerate(self.bodies)
-                         for j, b in enumerate(self.bodies) if j > i
-                         and np.linalg.norm(a.position - b.position) <= a.collision_radius + b.collision_radius), None)
-            if pair is None:
+            p,_,_=self.arrays()
+            hit=self.first_contact(p,p,force_planets)
+            if hit is None:
                 return
-            i, j = pair
-            a, b = self.bodies[i], self.bodies[j]
-            mass = a.mass + b.mass
-            merged = Body(a.name + " + " + b.name, mass,
-                          (a.mass * a.position + b.mass * b.position) / mass,
-                          (a.mass * a.velocity + b.mass * b.velocity) / mass,
-                          (a.visual_radius ** 3 + b.visual_radius ** 3) ** (1/3),
-                          tuple((a.mass * np.array(a.color) + b.mass * np.array(b.color)) / mass),
-                          "Estrela" if "Estrela" in (a.kind, b.kind) else a.kind,
-                          (a.collision_radius ** 3 + b.collision_radius ** 3) ** (1/3), uid=a.uid)
-            self.bodies[i] = merged
-            del self.bodies[j]
-            self.merge_count += 1
-            self.refresh()
+            self.merge_pair(hit[1],hit[2],event_time=self.time)
+
+    def merge_pair(self,i,j,event_time):
+        a,b=self.bodies[i],self.bodies[j]
+        stars=[body for body in (a,b) if body.kind=="Estrela"]
+        star=max(stars,key=lambda body:body.mass) if stars else None
+        survivor=star or a
+        mass=a.mass+b.mass
+        position=(a.mass*a.position+b.mass*b.position)/mass
+        if star:
+            other=b if star.uid==a.uid else a
+            direction=other.position-star.position
+            distance=np.linalg.norm(direction)
+            direction=direction/distance if distance>1e-12 else np.array([1.,0,0])
+            effect_position=star.position+direction*star.visual_radius
+        else:
+            effect_position=position
+        merged = Body(star.name if star else a.name + " + " + b.name, mass,position,
+                      (a.mass * a.velocity + b.mass * b.velocity) / mass,
+                      (a.visual_radius ** 3 + b.visual_radius ** 3) ** (1/3),
+                      star.color if star else tuple((a.mass * np.array(a.color) + b.mass * np.array(b.color)) / mass),
+                      "Estrela" if star else a.kind,
+                      (a.collision_radius ** 3 + b.collision_radius ** 3) ** (1/3), uid=survivor.uid)
+        self.collision_events.append(CollisionEvent(
+            "absorption" if star else "impact",(a.uid,b.uid),(a.name,b.name),survivor.uid,
+            tuple(effect_position),other.visual_radius if star else max(a.visual_radius,b.visual_radius),survivor.color,event_time,
+            tuple(position) if star else None,star.visual_radius if star else 0))
+        self.bodies[i]=merged
+        del self.bodies[j]
+        self.merge_count+=1
+        self.refresh()

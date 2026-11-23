@@ -37,6 +37,7 @@ O ambiente local foi criado por `uv`, portanto pode não conter `pip`. Para rein
 - Interface com painéis compactos, lista de corpos e aba separada de cenários.
 - Criação simplificada: tipos e cores prontos, posição por clique ou coordenadas e movimento inicial sugerido.
 - Ajustes de G, passo, suavização, escala das setas, limite de corpos, qualidade e fusão experimental.
+- Colisões entre planetas com clarão, onda de choque e destroços visuais temporários; absorção de corpos por estrelas.
 
 ## Controles
 
@@ -108,6 +109,8 @@ Energia é expressa em `Msol AU²/ano²`, momento linear em `Msol AU/ano`. Ediç
 
 - Uma unidade da cena corresponde a uma AU de posição. Raios visuais são ampliados e **não entram no cálculo da gravidade**.
 - O raio físico de colisão é um campo separado, em AU. Corpos são massas pontuais para as forças; não há dinâmica de corpos extensos.
+- **Absorção estelar:** ao atingir a superfície visível de uma estrela (ou o raio de colisão, se maior), o corpo é incorporado e não reaparece do outro lado. Essa superfície é uma regra didática de interação, independente das forças gravitacionais. A estrela preserva nome, cor e identidade; massa e momento são somados. Isso permanece ativo mesmo com colisões planetárias desativadas.
+- **Impactos planetários:** usam os raios de colisão físicos configuráveis, não os tamanhos visuais ampliados. Colisões estão ligadas por padrão e podem ser desativadas em Ajustes. O corpo resultante preserva massa e momento. Clarões e fragmentos são apenas efeitos gráficos; não acrescentam massas ao N-body. Duram até 1,8 segundo real, com 18 fragmentos em Baixa ou 38 em Alta e limite de 12 efeitos simultâneos.
 - O sistema inicial é uma arquitetura didática inspirada no Sistema Solar, com distâncias e fases adaptadas, não uma reprodução das posições reais. A lua utiliza separação didática dentro da esfera de Hill terrestre aproximada.
 - A seta de posição parte da origem inercial até o corpo. As outras partem do corpo. Vetores de força/aceleração/velocidade usam comprimento logarítmico e multiplicador visual configurável; seus módulos físicos são os valores do painel, nunca o comprimento da seta.
 - O campo mostra acelerações reais calculadas em uma grade XZ; suas setas usam escala logarítmica limitada e atualizam a 2 Hz. As sondas não influenciam os corpos. A lua pode ficar visualmente oculta pela Terra devido à ampliação dos raios; use a lista para selecioná-la e consultar seu estado.
@@ -124,7 +127,7 @@ Gráficos atualizados a no máximo 1 Hz; até 4000 amostras, coletadas a cada 10
 
 Forças são calculadas em lote, com custo O(N²). O padrão limita a 128 corpos; a configuração permite 2–512, sem promessa de tempo real no limite superior. O cenário inicial contém 10 corpos. O fundo usa uma única malha de pontos; vetores e trilhas são redesenhados a 10 Hz. Qualidade Baixa reduz a resolução das texturas. Não há efeitos pesados de pós-processamento. Em um notebook intermediário, comece com 10–30 corpos.
 
-Limitações: passo fixo, ausência de adaptação em encontros extremos, colisões discretas (podem atravessar corpos entre passos se a velocidade for muito alta), fusões sem fragmentação/rotação, luz principal associada à primeira estrela, sem relatividade, atmosfera física ou marés. A previsão de dois corpos não trata N-body. Não há arraste contínuo de planetas já existentes: reposicione-os pelo editor, por clique no plano ou coordenadas. Reduza o passo em encontros próximos e acompanhe a energia; suavização não substitui resolução temporal adequada. Texturas são ilustrativas.
+Limitações: passo fixo, ausência de adaptação geral em encontros extremos, fusões sem fragmentação física/rotação, luz principal associada à primeira estrela, sem relatividade, atmosfera física ou marés. A detecção de colisões testa o segmento entre posições inicial e prevista, resolve o primeiro contato e integra o tempo restante após a fusão; assim evita atravessamentos retilíneos rápidos entre passos. O segmento aproxima a trajetória curva dentro do passo: reduza o passo em encontros muito curvos e acompanhe energia. A previsão de dois corpos não trata N-body nem absorções/colisões. Não há arraste contínuo de planetas já existentes: reposicione-os pelo editor, por clique no plano ou coordenadas. Suavização não substitui resolução temporal adequada. Texturas e explosões são ilustrativas.
 
 ## Arquitetura
 
@@ -137,6 +140,7 @@ simulation/
   physics.py                    estado, tempo, histórico e fusões
   scenarios.py                  sete experimentos
   creation.py                   projeção geométrica e velocidade sugerida
+  collisions.py                 geometria de contato e eventos
 visualization/
   universe.py                   coordenação do aplicativo Ursina
   planet_renderer.py            texturas e corpos procedurais
@@ -144,6 +148,7 @@ visualization/
   orbit_renderer.py             trilhas e previsão
   camera.py                     exploração e acompanhamento
   placement.py                  grade e prévia de posicionamento na cena
+  collision_effects.py          explosões e absorções procedurais temporárias
 interface/
   hud.py                        painéis e controles integrados
   body_editor.py                criação, edição e configurações

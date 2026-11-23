@@ -312,7 +312,7 @@ def settings_form(app):
     fields=[("g","G (AU³ / Msol ano²)",s.g),("dt","PASSO FIXO (ano)",s.dt),
             ("eps","SUAVIZAÇÃO NUMÉRICA (AU)",s.softening),("trails","HISTÓRICO (10 a 5000 pontos)",s.trail_length),
             ("limit","LIMITE DE CORPOS (2 a 512)",s.max_bodies),("vectors","ESCALA VISUAL DAS SETAS",app.vectors.scale),
-            ("quality","QUALIDADE: Alta / Baixa",app.planets.quality),("collisions","FUSÃO EXPERIMENTAL: sim / não","sim" if s.collisions else "não")]
+            ("quality","QUALIDADE: Alta / Baixa",app.planets.quality),("collisions","COLISÕES ENTRE PLANETAS: sim / não","sim" if s.collisions else "não")]
     def submit(data):
         new=replace(s,g=float(data["g"]),dt=float(data["dt"]),softening=float(data["eps"]),
                     trail_length=int(data["trails"]),max_bodies=int(data["limit"]))

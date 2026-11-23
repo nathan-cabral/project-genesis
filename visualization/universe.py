@@ -14,6 +14,7 @@ from .planet_renderer import PlanetRenderer
 from .orbit_renderer import OrbitRenderer
 from .vector_renderer import VectorRenderer
 from .field_renderer import FieldRenderer
+from .collision_effects import CollisionEffects
 
 
 class Genesis(Entity):
@@ -34,6 +35,7 @@ class Genesis(Entity):
         self.modal=None
         self.last_revision=self.sim.revision
         self.planets=PlanetRenderer()
+        self.effects=CollisionEffects()
         self.orbits=OrbitRenderer()
         self.vectors=VectorRenderer()
         self.field=FieldRenderer()
@@ -111,7 +113,7 @@ class Genesis(Entity):
             return
         self.scenario_name=name
         self.sim=Simulation(SCENARIOS[name]())
-        self.sim.settings.collisions=name=="Colisão e fusão"
+        self.effects.clear()
         self.accumulator=0
         self.selected_uid=None; self.source_uid=None
         self.explorer.overview()
@@ -233,6 +235,8 @@ class Genesis(Entity):
             except (ValueError,FloatingPointError) as exc:
                 self.playing=False
                 self.notify(str(exc))
+        self.consume_collision_events()
+        self.effects.update(elapsed)
         if self.modal and hasattr(self.modal,"update"):
             self.modal.update()
         if not self.modal:
@@ -261,6 +265,30 @@ class Genesis(Entity):
         if self.chart_clock>=1:
             self.chart_clock=0
             self.charts.update(self.sim,self.selected,self.source)
+
+    def consume_collision_events(self):
+        changed=False
+        events=list(self.sim.collision_events)
+        self.sim.collision_events.clear()
+        for index,event in enumerate(events):
+            if index>=len(events)-self.effects.MAX_BURSTS:
+                self.effects.emit(event,self.planets.quality)
+            if self.selected_uid in event.body_uids:
+                self.selected_uid=event.survivor_uid
+            if self.explorer.follow_uid in event.body_uids:
+                self.explorer.follow_uid=event.survivor_uid
+            if self.source_uid in event.body_uids:
+                self.source_uid=event.survivor_uid
+            self.notify(("Absorção estelar: " if event.kind=="absorption" else "Impacto: ")+" + ".join(event.names))
+            changed=True
+        if changed:
+            self.orbits.clear_prediction()
+            self.orbits.redraw(self.sim)
+            self.field.draw(self.sim,self.field_visible)
+            self.vectors.clear()
+            if not self.source:
+                self.cycle_source()
+            self.hud.rebuild_bodies()
 
 
 def run(smoke_seconds=0, verify=False):
