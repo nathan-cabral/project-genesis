@@ -1,0 +1,12 @@
+.venv/
+.tools/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+exports/
+*.log
+.env
+.env.*
+.aws/
+Panda3D-*/
+Panda3D-*.pz/
