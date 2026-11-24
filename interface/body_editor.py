@@ -274,7 +274,7 @@ class BodyEditor:
                 candidate=[fresh if b.uid==fresh.uid else b for b in self.app.sim.bodies]
                 self.app.sim.validate_bodies(candidate)
                 self.app.sim.bodies=candidate
-                self.app.sim.rebaseline()
+                self.app.sim.refresh_after_edit()
             else:
                 self.app.sim.add(fresh)
         except (ValueError,OverflowError) as exc:
@@ -327,7 +327,7 @@ def settings_form(app):
         new.collisions=data["collisions"].lower()=="sim"
         app.sim.validate_bodies(app.sim.bodies,new)
         app.sim.settings=new
-        app.sim.rebaseline()
+        app.sim.refresh_after_edit()
         app.vectors.scale=scale
         app.planets.quality=data["quality"]
         app.orbits.clear_prediction()

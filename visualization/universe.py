@@ -8,7 +8,6 @@ from simulation.physics import Simulation
 from simulation.scenarios import SCENARIOS
 from interface.hud import HUD
 from interface.body_editor import body_form, settings_form
-from interface.charts import ScientificCharts
 from .camera import ExplorerCamera
 from .planet_renderer import PlanetRenderer
 from .orbit_renderer import OrbitRenderer
@@ -30,7 +29,6 @@ class Genesis(Entity):
         self.speed_index=3
         self.accumulator=0.0
         self.visual_clock=0
-        self.chart_clock=0
         self.real_start=clock.perf_counter()
         self.modal=None
         self.last_revision=self.sim.revision
@@ -42,7 +40,6 @@ class Genesis(Entity):
         self.field_visible=False
         self.field_clock=0
         self.explorer=ExplorerCamera()
-        self.charts=ScientificCharts(self)
         self.guides=[]
         self.make_space()
         self.hud=HUD(self)
@@ -128,13 +125,6 @@ class Genesis(Entity):
     def toggle_play(self):
         self.playing=not self.playing
 
-    def single_step(self):
-        self.playing=False
-        try:
-            self.sim.step()
-        except (ValueError,FloatingPointError) as exc:
-            self.notify(str(exc))
-
     def change_speed(self,delta):
         self.speed_index=max(0,min(len(self.SPEEDS)-1,self.speed_index+delta))
 
@@ -147,7 +137,7 @@ class Genesis(Entity):
             self.explorer.focus(self.selected,True)
 
     def create_body(self):
-        if not self.modal and not self.charts.visible:
+        if not self.modal:
             self.modal=body_form(self)
 
     def edit_body(self):
@@ -155,7 +145,7 @@ class Genesis(Entity):
             self.modal=body_form(self,self.selected)
 
     def open_settings(self):
-        if not self.modal and not self.charts.visible:
+        if not self.modal:
             self.modal=settings_form(self)
 
     def remove_body(self):
@@ -187,12 +177,6 @@ class Genesis(Entity):
         except ValueError as exc:
             self.notify(str(exc))
 
-    def open_charts(self):
-        if self.modal:
-            return
-        self.charts.open()
-        self.charts.update(self.sim,self.selected,self.source)
-
     def input(self,key):
         if self.modal:
             if hasattr(self.modal,"input"):
@@ -200,17 +184,9 @@ class Genesis(Entity):
             elif key=="escape":
                 self.modal.close()
             return
-        if self.charts.visible:
-            if key in ("escape","g"):
-                self.charts.close()
-            elif key=="space":
-                self.toggle_play()
-            elif key=="n":
-                self.single_step()
-            return
-        actions={"space":self.toggle_play,"n":self.single_step,"r":self.reset,"f":self.focus,
+        actions={"space":self.toggle_play,"r":self.reset,"f":self.focus,
                  "t":self.follow,"home":self.explorer.overview,"p":self.hud.toggle_professor,
-                 "g":self.open_charts,"b":self.toggle_field,"insert":self.create_body,"delete":self.remove_body,
+                 "b":self.toggle_field,"insert":self.create_body,"delete":self.remove_body,
                  "+":lambda:self.change_speed(1),"-":lambda:self.change_speed(-1)}
         if key in actions:
             actions[key]()
@@ -249,7 +225,7 @@ class Genesis(Entity):
         if self.selected:
             self.selection_ring.position=tuple(self.selected.position)
             self.selection_ring.scale=self.selected.visual_radius*1.65
-        self.visual_clock+=elapsed; self.chart_clock+=elapsed
+        self.visual_clock+=elapsed
         self.field_clock+=elapsed
         if self.field_visible and self.field_clock>=.5:
             self.field_clock=0
@@ -262,9 +238,6 @@ class Genesis(Entity):
                 self.hud.rebuild_bodies()
                 self.last_revision=self.sim.revision
             self.hud.update()
-        if self.chart_clock>=1:
-            self.chart_clock=0
-            self.charts.update(self.sim,self.selected,self.source)
 
     def consume_collision_events(self):
         changed=False

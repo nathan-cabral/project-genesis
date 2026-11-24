@@ -36,14 +36,12 @@ class Simulation:
         self.bodies = list(bodies)
         self.time = 0.0
         self.trails = {}
-        self.history = deque(maxlen=4000)
         self.revision = 0
         self.steps = 0
         self.merge_count = 0
         self.collision_events = deque(maxlen=256)
         self.refresh()
-        self.reference_energy = self.total_energy
-        self.record()
+        self.record_trails()
 
     def arrays(self):
         return (np.array([b.position for b in self.bodies]).reshape(-1, 3),
@@ -99,7 +97,7 @@ class Simulation:
         self.steps += 1
         self.merge_collisions(force_planets=False)
         if self.steps % 10 == 0:
-            self.record()
+            self.record_trails()
 
     def set_state(self,p,v,a):
         if not all(np.all(np.isfinite(x)) for x in (p,v,a)):
@@ -129,20 +127,15 @@ class Simulation:
         index=int(np.argmin(t))
         return (float(t[index]),int(i[index]),int(j[index])) if np.isfinite(t[index]) else None
 
-    def record(self):
+    def record_trails(self):
         for b in self.bodies:
             self.trails[b.uid].append(b.position.copy())
-        self.history.append({"time": self.time, "energy": self.total_energy,
-                             "bodies": {b.uid: (b.position.copy(), b.velocity.copy(), b.acceleration.copy())
-                                        for b in self.bodies}})
 
-    def rebaseline(self):
-        """User interventions start a new diagnostic interval."""
+    def refresh_after_edit(self):
+        """Refresh forces and restart trails after a user intervention."""
         self.refresh()
-        self.reference_energy = self.total_energy
-        self.history.clear()
         self.clear_trails()
-        self.record()
+        self.record_trails()
 
     def clear_trails(self):
         for trail in self.trails.values():
@@ -153,7 +146,7 @@ class Simulation:
             raise ValueError("Limite de corpos atingido.")
         self.validate_bodies(self.bodies+[body])
         self.bodies.append(body)
-        self.rebaseline()
+        self.refresh_after_edit()
 
     def validate_bodies(self, bodies, settings=None):
         s=settings or self.settings
@@ -167,7 +160,7 @@ class Simulation:
 
     def remove(self, uid):
         self.bodies = [b for b in self.bodies if b.uid != uid]
-        self.rebaseline()
+        self.refresh_after_edit()
 
     def forces_on(self, uid):
         p, _, m = self.arrays()

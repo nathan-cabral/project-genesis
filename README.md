@@ -32,8 +32,7 @@ O ambiente local foi criado por `uv`, portanto pode não conter `pip`. Para rein
 - Câmera livre, seleção por clique ou lista paginada, foco e acompanhamento.
 - Campo gravitacional amostrado no plano XZ com sondas sem massa (tecla B).
 - Trilhas históricas, limpeza e comprimento configurável; previsão tracejada em cenários de exatamente dois corpos.
-- Modo Professor com fórmulas, componentes, módulos, deslocamento, distância e substituições numéricas atualizadas.
-- Telemetria integrada ao universo, com um gráfico por aba e exportação PNG opcional.
+- Modo Professor compacto: um vetor por vez, com explicação curta, componentes X/Y/Z e módulo atualizado.
 - Interface com painéis compactos, lista de corpos e aba separada de cenários.
 - Criação simplificada: tipos e cores prontos, posição por clique ou coordenadas e movimento inicial sugerido.
 - Ajustes de G, passo, suavização, escala das setas, limite de corpos, qualidade e fusão experimental.
@@ -48,11 +47,10 @@ O ambiente local foi criado por `uv`, portanto pode não conter `pip`. Para rein
 | Zoom | Roda do mouse |
 | Navegar livremente | Segurar botão direito + W/A/S/D/Q/E |
 | Pausar / executar | Espaço ou botão |
-| Avançar um passo | N ou botão Passo |
 | Reiniciar cenário | R |
 | Focar / seguir seleção | F / T |
 | Visão geral | Home |
-| Modo Professor / gráficos | P / G |
+| Modo Professor | P |
 | Campo gravitacional | B |
 | Criar / remover corpo | Insert / Delete |
 | Aumentar / reduzir taxa de tempo | Botões + / − |
@@ -67,7 +65,9 @@ Os movimentos **Orbitar**, **Parado** e **Escape** preenchem um estado inicial c
 
 Para **editar**, selecione um corpo e clique em Editar. **Avançado** contém massa, tamanho visual, velocidade XYZ, raio de colisão e RGB. Uma velocidade digitada substitui a sugestão automática. Corpos existentes começam em movimento personalizado, preservando sua velocidade. Os formulários pausam a física; confirmar ou cancelar restaura o estado anterior. Tab avança entre campos da página. Use ponto decimal e vírgula entre componentes (`2.7, 0, 0`). Cores RGB vão de 0 a 1.
 
-O botão **Fonte** alterna o corpo responsável pela força individual rosa e pelo cálculo detalhado no Modo Professor. A resultante roxa soma a influência de todos os outros corpos. Sem corpo selecionado, o painel mostra energia e momento globais. A Lua está na segunda página da lista inicial.
+O botão **Fonte** alterna o corpo responsável pela força individual rosa. A resultante roxa soma a influência de todos os outros corpos. Sem corpo selecionado, o painel mostra energia e momento globais. A Lua está na segunda página da lista inicial.
+
+No **Modo Professor**, escolha posição, velocidade, aceleração, força de uma fonte ou resultante. O painel mostra apenas o vetor escolhido: seu significado, componentes X/Y/Z e módulo. A cor do título corresponde à seta na cena; escolher um vetor também ativa sua seta. **Componentes XYZ** mostra ou oculta a decomposição das setas. **Alternar fonte** aparece ao estudar a força individual. As explicações se concentram em direção, sentido e módulo; os detalhes do integrador ficam nesta documentação.
 
 **Reiniciar** restaura o cenário demonstrativo selecionado e seus parâmetros padrão; ele não é um botão de desfazer edições. Dados são mantidos em memória durante a sessão, sem persistência automática de sistemas.
 
@@ -103,7 +103,7 @@ E = Σ (m_i |v_i|²/2) − Σ(i<j) G m_i m_j / sqrt(|d_ij|² + ε²)
 P = Σ m_i v_i
 ```
 
-Energia é expressa em `Msol AU²/ano²`, momento linear em `Msol AU/ano`. Edições externas e mudanças de parâmetros estabelecem nova referência energética e limpam gráficos/trilhas. Fusões são inelásticas: preservam massa e momento linear, mas não energia mecânica. Em fusões, posição e velocidade são médias ponderadas pela massa; os volumes dos raios se somam. O indicador de variação de energia inclui essa dissipação.
+Energia é expressa em `Msol AU²/ano²`, momento linear em `Msol AU/ano`. Edições externas e mudanças de parâmetros reiniciam as trilhas. Fusões são inelásticas: preservam massa e momento linear, mas não energia mecânica. Em fusões, posição e velocidade são médias ponderadas pela massa; os volumes dos raios se somam.
 
 ## Física versus apresentação
 
@@ -117,13 +117,9 @@ Energia é expressa em `Msol AU²/ano²`, momento linear em `Msol AU/ano`. Ediç
 - Força individual e força resultante são conceitos distintos apenas em sistemas com três ou mais corpos. Com dois corpos elas coincidem.
 - Linhas circulares tênues são **guias iniciais**, não órbitas calculadas. As trilhas coloridas mostram posições realmente percorridas. A previsão tracejada é uma integração independente de dois corpos a partir do instante em que se clica em Prever; não se atualiza a cada quadro, não inclui fusões e usa horizonte de uma escala de período kepleriano (limitada a 2500 passos). Em trajetórias abertas, esse horizonte não é um período orbital real.
 
-## Gráficos e desempenho
+## Desempenho
 
-A tecla **G** abre a telemetria dentro da própria aplicação. As abas mostram **Energia**, **Velocidade**, **Aceleração**, **Distância** e **Posição**, uma visualização por vez. Energia destaca a variação percentual em relação à referência, com energia total no rodapé; se a referência for zero, mostra o valor absoluto para evitar divisão por zero. Os eixos têm valores explícitos, sem offsets numéricos ocultos. A escala mínima evita ampliar ruído numérico insignificante em séries quase constantes.
-
-Selecione um corpo e uma fonte antes de abrir as séries individuais. Esc ou G fecha o painel; Espaço pausa/executa e N avança um passo enquanto o gráfico está aberto. A física continua evoluindo normalmente. **Salvar PNG** exporta a aba atual para `exports/`, usando Matplotlib sem abrir outra janela. Matplotlib só é importado na exportação.
-
-Gráficos atualizados a no máximo 1 Hz; até 4000 amostras, coletadas a cada 10 passos físicos. Trilhas usam o mesmo intervalo; comprimento padrão de 900 pontos por corpo. Limpar trilhas não limpa as séries de telemetria. Uma série sem amostras mostra uma orientação, sem inventar dados.
+As trilhas registram posições a cada 10 passos físicos, com comprimento padrão de 900 pontos por corpo. O botão **Limpar** apaga essas trilhas.
 
 Forças são calculadas em lote, com custo O(N²). O padrão limita a 128 corpos; a configuração permite 2–512, sem promessa de tempo real no limite superior. O cenário inicial contém 10 corpos. O fundo usa uma única malha de pontos; vetores e trilhas são redesenhados a 10 Hz. Qualidade Baixa reduz a resolução das texturas. Não há efeitos pesados de pós-processamento. Em um notebook intermediário, comece com 10–30 corpos.
 
@@ -137,7 +133,7 @@ simulation/
   body.py                       validação de corpos e vetores
   gravity.py                    forças, acelerações e energia
   integrator.py                 Velocity Verlet
-  physics.py                    estado, tempo, histórico e fusões
+  physics.py                    estado, tempo, trilhas e fusões
   scenarios.py                  sete experimentos
   creation.py                   projeção geométrica e velocidade sugerida
   collisions.py                 geometria de contato e eventos
@@ -152,9 +148,7 @@ visualization/
 interface/
   hud.py                        painéis e controles integrados
   body_editor.py                criação, edição e configurações
-  educational_mode.py           explicações e valores físicos
-  charts.py                     telemetria integrada e exportação PNG
-  chart_data.py                 séries e limites numéricos dos eixos
+  educational_mode.py           explicações curtas e valores dos vetores
   theme.py                      componentes e identidade visual
 tests/test_physics.py           validação numérica sem janela
 diagnostics.py                  verificação dos fluxos do aplicativo
@@ -176,17 +170,19 @@ diagnostics.py                  verificação dos fluxos do aplicativo
 .\.venv\Scripts\python.exe main.py --verify
 ```
 
-`--verify` abre uma janela, testa os fluxos e grava PNGs em `exports/` (ignorado pelo Git). Testa projeção do cursor no plano, prévia sem criar corpo, criação, edição, remoção, ajustes, todos os cenários, vetores, Professor, previsão, abas de telemetria e exportação. Não substitui uma avaliação manual de seleção por mouse, câmera e legibilidade no computador da apresentação.
+`--verify` abre uma janela, testa os fluxos e grava PNGs em `exports/` (ignorado pelo Git). Testa projeção do cursor no plano, prévia sem criar corpo, criação, edição, remoção, ajustes, todos os cenários, vetores, painel do professor simplificado, pausar/executar e previsão. Não substitui uma avaliação manual de seleção por mouse, câmera e legibilidade no computador da apresentação.
 
 Os testes verificam distância, orientação, lei inversa do quadrado, soma de forças, aceleração, movimento uniforme, Verlet, suavização, fusão e conservação aproximada de energia/momento. A aceleração gravitacional de um corpo de teste é independente da própria massa quando as fontes são fixadas; para uma mesma força externa prescrita, vale `a=F/m`.
 
 ## Roteiro de apresentação
 
 1. Explore o sistema, pause e selecione Terra; ative velocidade e aceleração.
-2. Abra Modo Professor, alterne a fonte e mostre deslocamento, força individual e resultante.
+2. Abra Modo Professor e escolha um vetor por vez. Mostre direção, sentido, componentes e módulo; compare força individual e resultante.
 3. Crie um planeta e edite massa e velocidade. Compare a trajetória antes e depois.
 4. Carregue Estrelas binárias, mostre o centro de massa e a previsão tracejada.
 5. Compare velocidade insuficiente com escape; por fim, carregue Colisão e fusão.
-6. Abra os gráficos e discuta conservação, dissipação em fusões e erros de integração.
+6. Pause e use as componentes XYZ para explicar como os vetores descrevem o movimento observado.
 
-Documentação das dependências: [Ursina](https://www.ursinaengine.org/api_reference.html), [NumPy](https://numpy.org/doc/), [Matplotlib](https://matplotlib.org/stable/).
+Documentação das dependências: [Ursina](https://www.ursinaengine.org/api_reference.html), [NumPy](https://numpy.org/doc/).
+
+.\.venv\Scripts\python.exe main.py

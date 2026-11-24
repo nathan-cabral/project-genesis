@@ -15,7 +15,6 @@ class HUD:
         label("GENESIS",self.root,-.84,.46,1.3)
         label("Seu laboratório orbital",self.root,-.84,.415,.65,MUTED)
         self.status=label("",self.root,-.10,.451,.68,ACCENT)
-        button("Telemetria  / G",self.root,.53,.44,.22,app.open_charts)
         button("Ajustes",self.root,.75,.44,.17,app.open_settings)
         self.left=Entity(parent=self.root,x=-.715)
         self.right=Entity(parent=self.root,x=.705)
@@ -69,27 +68,40 @@ class HUD:
         self.bottom=Entity(parent=self.root,y=-.435)
         panel(self.bottom,size=(1.69,.078))
         self.play_button=button("Pausar",self.bottom,-.745,0,.14,app.toggle_play,tint=ACTIVE,height=.04)
-        button("Passo",self.bottom,-.60,0,.12,app.single_step)
-        button("Reiniciar",self.bottom,-.463,0,.14,app.reset)
-        button("−",self.bottom,-.35,0,.055,lambda:app.change_speed(-1))
-        self.rate=label("",self.bottom,-.30,.011,.67)
-        button("+",self.bottom,-.17,0,.055,lambda:app.change_speed(1))
-        self.trails_button=button("Trilhas",self.bottom,-.06,0,.13,app.toggle_trails)
-        self.field_button=button("Campo",self.bottom,.085,0,.13,app.toggle_field)
-        button("Limpar",self.bottom,.23,0,.13,app.clear_trails)
-        button("Prever",self.bottom,.37,0,.13,app.predict)
-        self.clock=label("",self.bottom,.48,.016,.61,ACCENT)
+        button("Reiniciar",self.bottom,-.575,0,.15,app.reset)
+        button("−",self.bottom,-.43,0,.055,lambda:app.change_speed(-1))
+        self.rate=label("",self.bottom,-.38,.011,.67)
+        button("+",self.bottom,-.23,0,.055,lambda:app.change_speed(1))
+        self.trails_button=button("Trilhas",self.bottom,-.09,0,.14,app.toggle_trails)
+        self.field_button=button("Campo",self.bottom,.07,0,.14,app.toggle_field)
+        button("Limpar",self.bottom,.23,0,.14,app.clear_trails)
+        button("Prever",self.bottom,.39,0,.14,app.predict)
+        self.clock=label("",self.bottom,.51,.016,.61,ACCENT)
         label("Arraste com botão direito para orbitar  ·  Roda para zoom  ·  Espaço para pausar",self.root,-.50,-.365,.58,MUTED)
         self.message=label("",self.root,-.49,.355,.61,MUTED)
         self.message.wordwrap=64
-        self.professor=Entity(parent=self.root,x=.46,enabled=False,z=-2)
-        panel(self.professor,size=(.78,.77),collider="box")
-        label("Modo Professor",self.professor,-.35,.335,1.05)
-        self.lesson=label("",self.professor,-.35,.28,.70)
-        button("Alternar fonte",self.professor,-.21,-.335,.25,app.cycle_source)
-        button("Fechar / P",self.professor,.245,.335,.20,self.toggle_professor)
+        self.professor=Entity(parent=self.root,x=.60,enabled=False,z=-2)
+        panel(self.professor,size=(.51,.75),collider="box")
+        label("Modo Professor",self.professor,-.225,.34,.95)
+        button("Fechar / P",self.professor,.165,.34,.12,self.toggle_professor,text_size=.60)
+        self.lesson_body=label("",self.professor,-.225,.28,.82)
+        label("Escolha um vetor",self.professor,-.225,.235,.63,MUTED)
+        self.lesson_vector="Velocidade"
+        self.lesson_buttons={}
         for i,(name,rgb) in enumerate(VECTOR_COLORS.items()):
-            label(name,self.professor,-.35+(i%3)*.24,-.24-(i//3)*.027,.52,color.rgb32(*rgb))
+            short="Força fonte" if name=="Força individual" else name
+            b=button(short,self.professor,-.15+(i%3)*.15,.19-(i//3)*.043,.14,
+                     lambda n=name:self.show_lesson(n),height=.034,text_size=.64)
+            b.text_color=color.rgb32(*rgb)
+            b.highlight_text_color=b.text_color
+            self.lesson_buttons[name]=b
+        self.lesson_title=label("",self.professor,-.225,.075,.95)
+        self.lesson=label("",self.professor,-.225,.03,.74)
+        label("Direção: alinhamento da seta.\nSentido: indicado pela ponta.\nMódulo: intensidade do vetor.",
+              self.professor,-.225,-.18,.68,MUTED)
+        self.lesson_scale=label("",self.professor,-.225,-.265,.58,MUTED)
+        self.lesson_components=button("Componentes XYZ",self.professor,-.115,-.331,.22,self.toggle_components,text_size=.65)
+        self.lesson_source=button("Alternar fonte",self.professor,.12,-.331,.21,app.cycle_source,text_size=.65)
         self.update()
 
     def show_tab(self,name):
@@ -128,6 +140,13 @@ class HUD:
     def toggle_professor(self):
         self.professor.enabled=not self.professor.enabled
         self.right.enabled=not self.professor.enabled
+        if self.professor.enabled:
+            self.show_lesson(self.lesson_vector)
+
+    def show_lesson(self,name):
+        self.lesson_vector=name
+        self.app.vectors.enabled[name]=True
+        self.update()
 
     def update(self):
         app=self.app; sim=app.sim; b=app.selected; source=app.source
@@ -163,4 +182,13 @@ class HUD:
         self.field_button.color=ACTIVE if app.field_visible else SURFACE
         self.clock.text=f"{sim.time:.3f} ano simulado\n{clock.perf_counter()-app.real_start:.0f}s de execução"
         if self.professor.enabled:
-            self.lesson.text=explanation(sim,b,source)
+            self.lesson_body.text=b.name[:28] if b else "Nenhum corpo selecionado"
+            self.lesson_title.text=self.lesson_vector
+            self.lesson_title.color=color.rgb32(*VECTOR_COLORS[self.lesson_vector])
+            self.lesson.text=explanation(sim,b,source,self.lesson_vector)
+            for name,btn in self.lesson_buttons.items():
+                btn.color=ACTIVE if name==self.lesson_vector else SURFACE
+            self.lesson_components.color=ACTIVE if app.vectors.components else SURFACE
+            self.lesson_source.enabled=b is not None and self.lesson_vector=="Força individual" and source is not None
+            self.lesson_scale.text=("Posição: da origem até o corpo." if self.lesson_vector=="Posição" else
+                                    "Seta em escala visual. Leia o módulo acima.") if b else ""

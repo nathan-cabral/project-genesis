@@ -118,14 +118,15 @@ class PhysicsTests(unittest.TestCase):
         fine=np.linalg.norm(results[1]-results[2])
         self.assertGreater(coarse/fine,3.8)
 
-    def test_history_bounded_and_baseline(self):
+    def test_trails_bounded_and_restart_after_edit(self):
         sim=Simulation(binary(),Settings(trail_length=10))
         for _ in range(150):
             sim.step()
         self.assertEqual(len(sim.trails[sim.bodies[0].uid]),10)
-        sim.rebaseline()
-        self.assertEqual(len(sim.history),1)
-        self.assertEqual(sim.reference_energy,sim.total_energy)
+        sim.refresh_after_edit()
+        for body in sim.bodies:
+            self.assertEqual(len(sim.trails[body.uid]),1)
+            assert_allclose(sim.trails[body.uid][0],body.position)
 
 
 if __name__ == "__main__":

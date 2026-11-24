@@ -19,6 +19,7 @@ def verify_application(lab, app):
 
     def overview():
         lab.playing=False
+        lab.hud.update()
         capture("01-universo.png")
         lab.create_body()
         assert lab.modal is not None
@@ -80,7 +81,30 @@ def verify_application(lab, app):
 
     def teacher():
         capture("03-professor.png")
+        for name,button in lab.hud.lesson_buttons.items():
+            button.on_click()
+            assert lab.hud.lesson_title.text==name
+            assert "Componentes (X, Y, Z)" in lab.hud.lesson.text
+            assert "Módulo:" in lab.hud.lesson.text
+        lab.hud.show_lesson("Força individual")
+        lab.hud.lesson_source.on_click()
+        lab.hud.update()
+        assert lab.source.name in lab.hud.lesson.text
+        capture("04-vetor-forca.png")
+        lab.selected_uid=None
+        lab.hud.update()
+        assert "Selecione um corpo" in lab.hud.lesson.text
         lab.hud.toggle_professor()
+        previous_time=lab.sim.time
+        lab.input("n")
+        lab.input("g")
+        assert not lab.playing and lab.sim.time==previous_time
+        lab.hud.play_button.on_click()
+        lab.hud.update()
+        assert lab.playing and lab.hud.play_button.text=="Pausar"
+        lab.input("space")
+        lab.hud.update()
+        assert not lab.playing and lab.hud.play_button.text=="Executar"
         for scenario in __import__("simulation.scenarios",fromlist=["SCENARIOS"]).SCENARIOS:
             lab.load_scenario(scenario)
             for _ in range(100):
@@ -92,14 +116,8 @@ def verify_application(lab, app):
             lab.sim.step()
         lab.predict()
         assert lab.orbits.prediction is not None
-        lab.open_charts()
-        for metric in ("Velocidade","Aceleração","Distância","Posição","Energia"):
-            lab.charts.set_metric(metric)
-        capture("04-telemetria.png")
-        lab.charts.export_png(output/"04-graficos.png")
-        lab.charts.close()
         lab.load_scenario("Sistema Genesis")
-        print("GENESIS VERIFY: posicionamento na cena, criação, edição, ajustes, 7 cenários e telemetria integrada OK",flush=True)
+        print("GENESIS VERIFY: posicionamento, criação, edição, ajustes, 7 cenários, vetores e painel do professor simplificado OK",flush=True)
 
     def collision_visuals():
         from simulation.body import Body
